@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <title>Bare - Start Bootstrap Template</title>
+
+  <!-- Bootstrap core CSS -->
+  <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" rel="stylesheet">
+
+
+</head>
+
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="#">Sample Web UI</a>
+  </nav>
+
+  <!-- Page Content -->
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-12 text-center">
+        <div class="md-form mt-0" style="padding-top: 100px;">
+          <input class="form-control" type="text" placeholder="Search" aria-label="Search symbols" id="symbol-search">
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-lg-12 text-center" style="margin-top: 50px;">
+        <table class="table" id="results-table">
+          <thead>
+            <tr>
+              <th scope="col">Symbol Name</th>
+              <th scope="col">Max Seen</th>
+              <th scope="col">Min Seen</th>
+              <th scope="col">Average Seen</th>
+              <th scope="col">Current Value</th>
+              <th scope="col">Fault Value</th>
+              <th scope="col">Fault Type</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap core JavaScript -->
+<script
+        src="https://code.jquery.com/jquery-3.5.1.slim.js"
+        integrity="sha256-DrT5NfxfbHvMHux31Lkhxg42LY6of8TaYyK50jnxRnM="
+        crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
+
+  <script type="text/javascript">
+    var ROLLING_LENGTH = 100;
+    var REFRESH_DURATION = 500; // ms
+
+    function GetSymbols() {
+      var symbols = [];
+      var letter_code = 'a'.charCodeAt(0);
+      for (; letter_code <= 'z'.charCodeAt(0); letter_code++) {
+        symbols.push(String.fromCharCode(letter_code));
+      }
+      return symbols;
+    }
+
+    function BuildSymbolDatabase(symbols) {
+      var database = {
+        all_symbols: symbols,
+        filtered_symbols: [],
+        values: {},
+        filter_string: ''
+      }
+      symbols.forEach(function(value) {
+        database.values[value] = {
+          values : [],
+          fault_type : 'None',
+          fault_value : 0,
+        };
+      });
+      return database;
+    }
+
+    function UpdateSymbolDatabase(database) {
+      // Stub in for DB call for now
+      var query_results = []
+      database.filtered_symbols = [];
+      console.log(database.filter_string);
+      console.log(database.filter_string.length);
+      if (database.filter_string.length > 0) {
+        database.all_symbols.forEach(function(value) {
+          if ((database.filter_string == "*") ||
+              (value.toLowerCase().includes(database.filter_string.toLowerCase()))) {
+            query_results.push({
+              'name' : value,
+              'value' : Math.random() * 1000,
+              'fault_value' : 0,
+              'fault_type' : 'None'
+            })
+          }
+        });
+      }
+
+      // Process results
+      //  Step 1) Indicate all values are stale
+      database.all_symbols.forEach(function(value) {
+        database.values[value].fresh = false;
+      });
+      //  Step 2) Process results
+      query_results.forEach(function(result) {
+        var db_entry = database.values[result.name];
+        db_entry.fresh = true;
+        db_entry.fault = result.fault;
+        db_entry.fault_type = result.fault_type;
+        if (db_entry.values.length >= ROLLING_LENGTH) {
+          db_entry.values.shift();
+        }
+        db_entry.values.push(result.value);
+        database.filtered_symbols.push(result.name);
+      });
+
+      // Clear out values for old symbols
+      database.all_symbols.forEach(function(value) {
+        if (!database.values[value].fresh) {
+          database.values[value].values = [];
+          database.values[value].fault_value = 0;
+          database.values[value].fault = 'None';
+        }
+      });
+    }
+
+    function PopulateRow(database, symbol) {
+        var values = database.values[symbol].values;
+        var fault_type = database.values[symbol].fault_type;
+        var fault_value = database.values[symbol].fault_value.toString();
+        $('#' + symbol + '_max').html(Math.max(...values).toString());
+        $('#' + symbol + '_min').html(Math.min(...values).toString());
+        $('#' + symbol + '_average').html((values.reduce((a,b) => a + b, 0) / values.length).toString());
+        if (values.length > 0) {
+          $('#' + symbol + '_current').html(values[values.length - 1].toString());
+        }
+        $('#' + symbol + '_fault_value').html(fault_value.toString());
+        $('#' + symbol + '_fault_type').html(fault_type);
+    }
+
+    function RefreshView(database) {
+      UpdateSymbolDatabase(database);
+      database.filtered_symbols.forEach(function(value) {
+        PopulateRow(database, value);
+      });
+      setTimeout(function() {RefreshView(database)} , REFRESH_DURATION);
+    }
+
+    function BuildTable(database) {
+      database.filtered_symbols.forEach(function(value) {
+        if (database.values[value].fresh) {
+          console.log("Adding row for " + value);
+          $('#results-table tr:last').after(
+            '<tr class="results-row">' +
+              '<td id="' + value + '_name' + '">' + value + '</td>' +
+              '<td id="' + value + '_max' + '"></td>' +
+              '<td id="' + value + '_min' + '"></td>' +
+              '<td id="' + value + '_average' + '"></td>' +
+              '<td id="' + value + '_current' + '"></td>' +
+              '<td id="' + value + '_fault_value' + '"></td>' +
+              '<td id="' + value + '_fault_type' + '"></td>' +
+            '</tr>'
+          );
+          PopulateRow(database, value);
+        }
+      });
+    }
+
+    function EmptyTable() {
+      $('.results-row').empty();
+    }
+
+    var monitorTask = setTimeout(function() {RefreshView(database)} , REFRESH_DURATION);
+
+    $('#symbol-search').on('input', function() {
+      // Delete all rows from GUI
+      EmptyTable();
+      database.filter_string = $('#symbol-search').val();
+      // Update database
+      UpdateSymbolDatabase(database);
+      // Build up a skeleton table showing only the freshest values
+      BuildTable(database);
+    });
+
+
+
+    var all_symbols = GetSymbols();
+    var database = BuildSymbolDatabase(all_symbols);
+    
+    // function UpdateData(database, query) {
+    //   results = {};
+    //   symbols.forEach(function(value) {
+    //     results[value] = {
+    //       'm'
+    //     }
+    //   });
+        // $.ajax({
+        //     url: url,
+        //     type: "GET",
+        //     contentType: "application/json; charset=utf-8",
+        //     success: onSuccess,
+        //     error: onError,
+        //     complete: function(xhr, status) {
+        //         setTimeout(GetData(url), 5000);
+        //     }
+        // });
+    //}
+
+    // setTimeout(function() {
+    //   GetData();
+    // }, 5000);
+  </script>
+
+
+</body>
+
+</html>
